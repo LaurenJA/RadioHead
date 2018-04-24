@@ -23,6 +23,9 @@ rf69_server.o: rf69_server.cpp
 RH_RF69.o: $(RADIOHEADBASE)/RH_RF69.cpp
 				$(CC) $(CFLAGS) -c $(INCLUDE) $<
 
+RHReliableDatagram.o: $(RADIOHEADBASE)/RHReliableDatagram.cpp 
+				$(CC) $(CFLAGS) -c $(INCLUDE) $<
+
 RHDatagram.o: $(RADIOHEADBASE)/RHDatagram.cpp
 				$(CC) $(CFLAGS) -c $(INCLUDE) $<
 
@@ -41,7 +44,7 @@ RHGenericSPI.o: $(RADIOHEADBASE)/RHGenericSPI.cpp
 rf69_client: rf69_client.o RH_RF69.o RasPi.o RHHardwareSPI.o RHGenericDriver.o RHGenericSPI.o RHSPIDriver.o
 				$(CC) $^ $(LIBS) -o rf69_client
 
-rf69_server: rf69_server.o RH_RF69.o RasPi.o RHHardwareSPI.o RHGenericDriver.o RHGenericSPI.o RHSPIDriver.o
+rf69_server: rf69_server.o RH_RF69.o RasPi.o RHHardwareSPI.o RHGenericDriver.o RHGenericSPI.o RHSPIDriver.o RHDatagram.o RHReliableDatagram.o
 				$(CC) $^ $(LIBS) -o rf69_server
 
 clean:

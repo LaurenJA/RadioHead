@@ -40,10 +40,14 @@
 
 // Now we include RasPi_Boards.h so this will expose defined 
 // constants with CS/IRQ/RESET/on board LED pins definition
-#include "../RasPiBoards.h"
+//#include "../RasPiBoards.h"
+
+#define RF_CS_PIN  RPI_V2_GPIO_P1_24 // Slave Select on CE0 so P1 connector pin #24
+#define RF_IRQ_PIN RPI_V2_GPIO_P1_16 // IRQ on GPIO25 so P1 connector pin #22
+#define RF_RST_PIN RPI_V2_GPIO_P1_18 // RST on GPIO24 so P1 connector pin #18
 
 // Our RFM69 Configuration 
-#define RF_FREQUENCY  433.00
+#define RF_FREQUENCY  915.00
 #define RF_GROUP_ID   69 // Moteino default is 100, I'm using 69 on all my house
 #define RF_GATEWAY_ID 1  // Were to send packet
 #define RF_NODE_ID    10 // our own ID
@@ -97,6 +101,8 @@ int main (int argc, const char* argv[] )
   digitalWrite(RF_RST_PIN, LOW );
   bcm2835_delay(150);
   digitalWrite(RF_RST_PIN, HIGH );
+  bcm2835_delay(100);
+  digitalWrite(RF_RST_PIN, LOW );
   bcm2835_delay(100);
 #endif
 

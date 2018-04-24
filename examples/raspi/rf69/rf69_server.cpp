@@ -19,6 +19,8 @@
 #include <RH_RF69.h>
 #include <RH_RF69.h>
 
+#include <RHReliableDatagram.h>
+
 // define hardware used change to fit your need
 // Uncomment the board you have, if not listed 
 // uncommment custom board and set wiring tin custom section
@@ -41,16 +43,24 @@
 
 // Now we include RasPi_Boards.h so this will expose defined 
 // constants with CS/IRQ/RESET/on board LED pins definition
-#include "../RasPiBoards.h"
+//#include "../RasPiBoards.h"
+
+//#define RF_LED_PIN NOT_A_PIN // Led on GPIO23 so P1 connector pin #16
+#define RF_CS_PIN  RPI_V2_GPIO_P1_24 // Slave Select on CE0 so P1 connector pin #24
+#define RF_IRQ_PIN RPI_V2_GPIO_P1_16 // IRQ on GPIO25 so P1 connector pin #22
+#define RF_RST_PIN RPI_V2_GPIO_P1_18 // RST on GPIO24 so P1 connector pin #18
 
 // Our RFM69 Configuration 
-#define RF_FREQUENCY  433.00
+//#define RF_FREQUENCY  433.00
+#define RF_FREQUENCY  915.00
 #define RF_NODE_ID    1  // We're node ID 1 (Gateway)
-#define RF_GROUP_ID   69 // Moteino default is 100, I'm using 69 on all my house
+#define RF_GROUP_ID   1 // Moteino default is 100, I'm using 69 on all my house
 
 // Create an instance of a driver
 RH_RF69 rf69(RF_CS_PIN, RF_IRQ_PIN);
 //RH_RF69 rf69(RF_CS_PIN);
+
+RHReliableDatagram rf69_manager(rf69, RF_NODE_ID);
 
 //Flag for Ctrl-C
 volatile sig_atomic_t force_exit = false;
@@ -61,51 +71,56 @@ void sig_handler(int sig)
   force_exit=true;
 }
 
-//Main Function
-int main (int argc, const char* argv[] )
-{
-  unsigned long led_blink = 0;
-  
-  signal(SIGINT, sig_handler);
-  printf( "%s\n", __BASEFILE__);
-
-  if (!bcm2835_init()) {
-    fprintf( stderr, "%s bcm2835_init() Failed\n\n", __BASEFILE__ );
-    return 1;
-  }
-  
-  printf( "RF69 CS=GPIO%d", RF_CS_PIN);
-
-#ifdef RF_LED_PIN
-  pinMode(RF_LED_PIN, OUTPUT);
-  digitalWrite(RF_LED_PIN, HIGH );
-#endif
-
-#ifdef RF_IRQ_PIN
-  printf( ", IRQ=GPIO%d", RF_IRQ_PIN );
-  // IRQ Pin input/pull down
-  pinMode(RF_IRQ_PIN, INPUT);
-  bcm2835_gpio_set_pud(RF_IRQ_PIN, BCM2835_GPIO_PUD_DOWN);
-  // Now we can enable Rising edge detection
-  bcm2835_gpio_ren(RF_IRQ_PIN);
-#endif
-  
-#ifdef RF_RST_PIN
-  printf( ", RST=GPIO%d", RF_RST_PIN );
-  // Pulse a reset on module
-  pinMode(RF_RST_PIN, OUTPUT);
-  digitalWrite(RF_RST_PIN, LOW );
-  bcm2835_delay(150);
-  digitalWrite(RF_RST_PIN, HIGH );
-  bcm2835_delay(100);
-#endif
-
-#ifdef RF_LED_PIN
-  printf( ", LED=GPIO%d", RF_LED_PIN );
-  digitalWrite(RF_LED_PIN, LOW );
-#endif
-
+void reliableServer() {
   if (!rf69.init()) {
+    fprintf( stderr, "\nRF69 module init failed, Please verify wiring/module\n" );
+  } else {
+    printf( "\nRF69 module seen OK!\r\n");
+
+    if (!rf69.setFrequency(RF_FREQUENCY)) {
+      printf("setFrequency failed\n");
+  }
+
+    rf69.setTxPower(20);
+
+    // Be sure to grab all node packet 
+    // we're sniffing to display, it's a demo
+    rf69.setPromiscuous(true);
+
+    // Dont put this on the stack:
+    uint8_t data[] = "And hello back to you";
+    // Dont put this on the stack:
+    uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+
+     while (!force_exit) {
+      if (rf69_manager.available())
+      {
+    // Wait for a message addressed to us from the client
+        uint8_t len = sizeof(buf);
+        uint8_t from;
+        if (rf69_manager.recvfromAck(buf, &len, &from)) {
+      buf[len] = 0; // zero out remaining string
+      
+      printf("Got packet from #"); printf("%d",from);
+      printf(" [RSSI :");
+      printf("%0.2f",rf69.lastRssi());
+      printf("] : ");
+      printf("%s\n", (char*)buf);
+      //Blink(LED, 40, 3); //blink LED 3 times, 40ms between blinks
+
+      // Send a reply back to the originator client
+      if (!rf69_manager.sendtoWait(data, sizeof(data), from))
+        printf("Sending failed (no ack)\n");
+    }
+  }
+}
+}
+
+}
+
+void workingServer() {
+
+    if (!rf69.init()) {
     fprintf( stderr, "\nRF69 module init failed, Please verify wiring/module\n" );
   } else {
     printf( "\nRF69 module seen OK!\r\n");
@@ -121,13 +136,13 @@ int main (int argc, const char* argv[] )
 
     // Now we change back to Moteino setting to be 
     // compatible with RFM69 library from lowpowerlabs 
-    rf69.setModemConfig( RH_RF69::FSK_MOTEINO);
+    //rf69.setModemConfig( RH_RF69::FSK_MOTEINO);
 
     // set Network ID (by sync words)
     uint8_t syncwords[2];
     syncwords[0] = 0x2d;
     syncwords[1] = RF_GROUP_ID;
-    rf69.setSyncWords(syncwords, sizeof(syncwords));
+    //rf69.setSyncWords(syncwords, sizeof(syncwords));
 
     // Adjust Frequency
     rf69.setFrequency( RF_FREQUENCY );
@@ -180,7 +195,7 @@ int main (int argc, const char* argv[] )
             printf("Packet[%02d] #%d => #%d %ddB: ", len, from, to, rssi);
             printbuffer(buf, len);
           } else {
-            Serial.print("receive failed");
+            printf("receive failed");
           }
           printf("\n");
         }
@@ -205,8 +220,68 @@ int main (int argc, const char* argv[] )
 
 #ifdef RF_LED_PIN
   digitalWrite(RF_LED_PIN, LOW );
+  
 #endif
+
+}
+
+//Main Function
+int main (int argc, const char* argv[] )
+{
+  unsigned long led_blink = 0;
+  
+  signal(SIGINT, sig_handler);
+  printf( "%s\n", __BASEFILE__);
+
+  if (!bcm2835_init()) {
+    fprintf( stderr, "%s bcm2835_init() Failed\n\n", __BASEFILE__ );
+    return 1;
+  }
+
+  if(!bcm2835_spi_begin()) {
+    printf("Failed\n");
+    return 1;
+  }
+  
+  printf( "RF69 CS=GPIO%d", RF_CS_PIN);
+
+#ifdef RF_LED_PIN
+  pinMode(RF_LED_PIN, OUTPUT);
+  digitalWrite(RF_LED_PIN, HIGH );
+#endif
+
+#ifdef RF_IRQ_PIN
+  printf( ", IRQ=GPIO%d", RF_IRQ_PIN );
+  // IRQ Pin input/pull down
+  pinMode(RF_IRQ_PIN, INPUT);
+  bcm2835_gpio_set_pud(RF_IRQ_PIN, BCM2835_GPIO_PUD_DOWN);
+  // Now we can enable Rising edge detection
+  bcm2835_gpio_ren(RF_IRQ_PIN);
+#endif
+  
+#ifdef RF_RST_PIN
+  printf( ", RST=GPIO%d", RF_RST_PIN );
+  // Pulse a reset on module
+  pinMode(RF_RST_PIN, OUTPUT);
+  digitalWrite(RF_RST_PIN, LOW );
+  bcm2835_delay(150);
+  digitalWrite(RF_RST_PIN, HIGH );
+  bcm2835_delay(100);
+  digitalWrite(RF_RST_PIN, LOW );
+  bcm2835_delay(100);
+#endif
+
+#ifdef RF_LED_PIN
+  printf( ", LED=GPIO%d", RF_LED_PIN );
+  digitalWrite(RF_LED_PIN, LOW );
+#endif
+  printf("\n");
+
+  workingServer();
+  //reliableServer();
+
   printf( "\n%s Ending\n", __BASEFILE__ );
+  bcm2835_spi_end();
   bcm2835_close();
   return 0;
 }
