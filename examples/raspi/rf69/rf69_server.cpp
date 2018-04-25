@@ -72,7 +72,7 @@ void sig_handler(int sig)
 }
 
 void reliableServer() {
-  if (!rf69.init()) {
+  if (!rf69_manager.init()) {
     fprintf( stderr, "\nRF69 module init failed, Please verify wiring/module\n" );
   } else {
     printf( "\nRF69 module seen OK!\r\n");
@@ -85,7 +85,7 @@ void reliableServer() {
 
     // Be sure to grab all node packet 
     // we're sniffing to display, it's a demo
-    rf69.setPromiscuous(true);
+    // rf69.setPromiscuous(true);
 
     // Dont put this on the stack:
     uint8_t data[] = "And hello back to you";
@@ -103,7 +103,7 @@ void reliableServer() {
       
       printf("Got packet from #"); printf("%d",from);
       printf(" [RSSI :");
-      printf("%0.2f",rf69.lastRssi());
+      printf("%d",rf69.lastRssi());
       printf("] : ");
       printf("%s\n", (char*)buf);
       //Blink(LED, 40, 3); //blink LED 3 times, 40ms between blinks
@@ -277,8 +277,8 @@ int main (int argc, const char* argv[] )
 #endif
   printf("\n");
 
-  workingServer();
-  //reliableServer();
+  //workingServer();
+  reliableServer();
 
   printf( "\n%s Ending\n", __BASEFILE__ );
   bcm2835_spi_end();
