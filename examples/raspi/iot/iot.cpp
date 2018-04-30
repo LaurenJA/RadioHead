@@ -1,12 +1,13 @@
-#include <stdio.h>
-
 #include <bcm2835.h>
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string>
 
 #include <RH_RF69.h>
 #include <RHReliableDatagram.h>
+
+#include <curl/curl.h>
 
 #define RF_CS_PIN RPI_V2_GPIO_P1_24  // Slave Select on CE0 so P1 connector pin #24
 #define RF_RST_PIN RPI_V2_GPIO_P1_18 // RST on GPIO24 so P1 connector pin #18
@@ -22,6 +23,17 @@
 #define MICROPHONE_AUDIO_ID 2 
 #define MICROPHONE_ENVEL_ID 3
 #define CO2_ID 4
+
+#define TRINKET1_ID 2
+#define TRINKET2_ID 3
+#define TEMP_1 "N5S0"
+#define TEMP_2 "N9S0"
+#define MIC_1 "N6S0"
+#define MIC_2 "N10S0"
+#define IR_1 "N7S0"
+#define IR_2 "N11S0"
+#define CO2_1 "N8S0"
+#define CO2_2 "N12S0"
 
 // Create an instance of a driver
 RH_RF69 rf69(RF_CS_PIN);
@@ -53,6 +65,27 @@ float convertToFloat(uint8_t* buf) {
     return x.number;
 }
 
+void postToServer(CURL *&curl, const std::string& id, float val) {
+	if(curl) {
+    /* First set the URL that is about to receive our POST. This URL can
+       just as well be a https:// URL if that is what should receive the
+       data. */ 
+       std::string url = std::string("http://localhost/Api/EasyIoT/Control/Module/Virtual/")+ id + "/ControlLevel/" + std::to_string(val);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    /* Now specify the POST data */ 
+    curl_easy_setopt(curl, CURLOPT_USERPWD, "admin:test");
+ 
+    /* Perform the request, res will get the return code */ 
+    CURLcode res = curl_easy_perform(curl);
+    /* Check for errors */ 
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+ 
+    
+  }
+}
+
 int main(int argc, char *argv[])
 {
     uint8_t data[] = "And hello back to you";
@@ -61,6 +94,17 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, sig_handler);
     printf("%s\n", __BASEFILE__);
+    
+    CURLcode code;
+ 
+  	CURL *curl = curl_easy_init();
+ 
+  	if(curl == NULL) {
+    	fprintf(stderr, "Failed to create CURL connection\n");
+    	exit(EXIT_FAILURE);
+  	}
+  	
+
 
     if (!bcm2835_init())
     {
@@ -112,25 +156,41 @@ int main(int argc, char *argv[])
                     index = 0; 
                     // TODO: CONVERT TO WHILE AND CASE STATEMENT
                     uint8_t packetNum = buf[index++];
-                    printf("#%d", packetNum);
+                    printf("#%d #%d", from, packetNum);
                     if (buf[index++] == TEMP_ID) {
                         float temp = convertToFloat(&buf[index]);
                         index += 4;
+                        if (from == TRINKET1_ID) 
+                        	  	postToServer(curl, TEMP_1, temp);
+                        else 
+                        	postToServer(curl, TEMP_2, temp);
                         printf(" %2.2fC", temp);
                     }
                     if (buf[index++] == IR_ID) {
                         float ir = convertToFloat(&buf[index]);
                         index += 4;
+                        if (from == TRINKET1_ID) 
+                        	  	postToServer(curl, IR_1, ir);
+                        else 
+                        	postToServer(curl, IR_2, ir);
                         printf(" %2.2fV", ir);
                     }
                     if (buf[index++] == MICROPHONE_ENVEL_ID) {
                         float mic = convertToFloat(&buf[index]);
                         index += 4;
+                        if (from == TRINKET1_ID) 
+                        	  	postToServer(curl, MIC_1, mic);
+                        else 
+                        	postToServer(curl, MIC_2, mic);
                         printf(" %2.2fdB", mic);
                     }
                     if (buf[index++] == CO2_ID) {
                         float c = convertToFloat(&buf[index]);
                         index += 4;
+                        if (from == TRINKET1_ID) 
+                        	  	postToServer(curl, CO2_1, c);
+                        else 
+                        	postToServer(curl, CO2_2, c);
                         printf(" %2.2f", c);
                     }
                     printf("\n");
@@ -139,6 +199,8 @@ int main(int argc, char *argv[])
             }
         }
     }
-
+/* always cleanup */ 
+    curl_easy_cleanup(curl);
+	curl_global_cleanup();
     return 0;
 }

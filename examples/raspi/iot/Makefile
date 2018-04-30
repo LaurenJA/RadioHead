@@ -5,9 +5,9 @@
 
 CC            = g++
 CFLAGS        = -DRASPBERRY_PI -DBCM2835_NO_DELAY_COMPATIBILITY -D__BASEFILE__=\"$*\"
-LIBS          = -lbcm2835
+LIBS          = -lbcm2835 -lcurl 
 RADIOHEADBASE = ../../..
-INCLUDE       = -I$(RADIOHEADBASE)
+INCLUDE       = -I$(RADIOHEADBASE)  -I/usr/include/arm-linux-gnueabihf/curl/
 
 all: iot
 
