@@ -65,6 +65,31 @@ float convertToFloat(uint8_t* buf) {
     return x.number;
 }
 
+uint16_t readAdc () {
+    char data[3];
+    uint16_t sensorVal;
+
+    data[0] = 0x01; //start bit
+    data[1] = 0b10000000 |( ((0 & 7) << 4)); // second byte transmitted -> (SGL/DIF = 1, D2=D1=D0=0)
+    data[2] = 0; // third byte transmitted....don't care
+
+    bcm2835_aux_spi_transfern(data, sizeof(data));
+
+    sensorVal = 0;
+    sensorVal = (data[1]<< 8) & 0b1100000000; //merge data[1] & data[2] to get result
+    sensorVal |=  (data[2] & 0xff);
+
+    return sensorVal;
+}
+
+float getTemp() {
+    float t; 
+    uint16_t sensorVal = readAdc();
+    t = (sensorVal * 3.3 * 100) /1023;
+
+    return t;
+}
+
 void postToServer(CURL *&curl, const std::string& id, float val) {
 	if(curl) {
     /* First set the URL that is about to receive our POST. This URL can
@@ -117,6 +142,14 @@ int main(int argc, char *argv[])
         printf("Failed\n");
         return 1;
     }
+
+    if(!bcm2835_aux_spi_begin())
+    {
+        printf("Failed\n");
+        return 1;
+    }
+
+    
 
     printf("RF69 CS=GPIO%d", RF_CS_PIN);
 
@@ -193,6 +226,8 @@ int main(int argc, char *argv[])
                         	postToServer(curl, CO2_2, c);
                         printf(" %2.2f", c);
                     }
+                    postToServer(curl, "N13S0", getTemp());
+                    printf(" %2.2f*C", getTemp());
                     printf("\n");
 
                 }
