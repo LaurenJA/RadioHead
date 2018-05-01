@@ -35,6 +35,8 @@
 #define CO2_1 "N8S0"
 #define CO2_2 "N12S0"
 
+#define TEMP_PI "N13S0"
+
 // Create an instance of a driver
 RH_RF69 rf69(RF_CS_PIN);
 RHReliableDatagram rf69_manager(rf69, RF_NODE_ID);
@@ -226,7 +228,7 @@ int main(int argc, char *argv[])
                         	postToServer(curl, CO2_2, c);
                         printf(" %2.2f", c);
                     }
-                    postToServer(curl, "N13S0", getTemp());
+                    postToServer(curl, TEMP_PI, getTemp());
                     printf(" %2.2f*C", getTemp());
                     printf("\n");
 
@@ -235,7 +237,10 @@ int main(int argc, char *argv[])
         }
     }
 /* always cleanup */ 
-    curl_easy_cleanup(curl);
+	printf( "\n%s Ending\n", __BASEFILE__ );
+  bcm2835_spi_end();
+  bcm2835_close();
+   curl_easy_cleanup(curl);
 	curl_global_cleanup();
-    return 0;
+	return 0;
 }
