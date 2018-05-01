@@ -37,6 +37,8 @@
 
 #define TEMP_PI "N13S0"
 
+#define FAN_PIN 18
+
 // Create an instance of a driver
 RH_RF69 rf69(RF_CS_PIN);
 RHReliableDatagram rf69_manager(rf69, RF_NODE_ID);
@@ -90,6 +92,10 @@ float getTemp() {
     t = (sensorVal * 3.3 * 100) /1023;
 
     return t;
+}
+
+void setFan(uint8_t set) {
+	bcm2835_gpio_write(FAN_PIN, set);
 }
 
 void postToServer(CURL *&curl, const std::string& id, float val) {
@@ -150,8 +156,9 @@ int main(int argc, char *argv[])
         printf("Failed\n");
         return 1;
     }
-
     
+    // Setup fan
+    bcm2835_gpio_fsel(FAN_PIN, BCM2835_GPIO_FSEL_OUTP);
 
     printf("RF69 CS=GPIO%d", RF_CS_PIN);
 
@@ -228,8 +235,14 @@ int main(int argc, char *argv[])
                         	postToServer(curl, CO2_2, c);
                         printf(" %2.2f", c);
                     }
-                    postToServer(curl, TEMP_PI, getTemp());
-                    printf(" %2.2f*C", getTemp());
+                    float t = getTemp();
+                    postToServer(curl, TEMP_PI, t);
+                    if (t > 27) {
+                    	setFan(HIGH);
+							} else {
+								setFan(LOW);
+							}
+                    printf(" %2.2f*C", t);
                     printf("\n");
 
                 }
